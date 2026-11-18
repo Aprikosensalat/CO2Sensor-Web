@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CO2-Sensor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>CO₂-Sensor</h1>
+      <button id="connect" type="button">Verbinden</button>
+    </header>
+
+    <p id="message" class="message" hidden></p>
+    <p id="connection" class="muted">Nicht verbunden</p>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="main" aria-selected="true">Messwerte</button>
+      <button type="button" role="tab" data-tab="sensor" aria-selected="false">Sensor &amp; Display</button>
+    </nav>
+
+    <div data-page="main">
+    <section id="live" class="values live" aria-label="Aktuelle Messwerte"></section>
+
+    <section class="panel">
+      <h2>Verlauf</h2>
+      <div class="controls">
+        <label>
+          Zeitraum
+          <select id="range">
+            <option value="day" selected>Tag aus Kalender</option>
+            <option value="1">Letzte 24 h</option>
+            <option value="7">Letzte 7 Tage</option>
+            <option value="30">Letzte 30 Tage</option>
+            <option value="0">Alles</option>
+          </select>
+        </label>
+        <button id="refresh" type="button" disabled>Aktualisieren</button>
+        <button id="download" type="button" disabled>CSV herunterladen</button>
+      </div>
+      <div id="seriesToggles" class="controls toggles" aria-label="Angezeigte Diagramme"></div>
+      <div id="calendar" class="calendar" hidden>
+        <div class="calendar-head">
+          <button id="calPrev" type="button" class="secondary" aria-label="Voriger Monat">‹</button>
+          <span id="calTitle"></span>
+          <button id="calNext" type="button" class="secondary" aria-label="Nächster Monat">›</button>
+        </div>
+        <div id="calGrid" class="calendar-grid"></div>
+        <div class="controls calendar-days">
+          <button id="dayPrev" type="button" class="secondary">‹ Vortag</button>
+          <button id="dayToday" type="button" class="secondary">Heute</button>
+          <button id="dayNext" type="button" class="secondary">Folgetag ›</button>
+        </div>
+      </div>
+      <progress id="progress" max="1" value="0" hidden></progress>
+      <p id="history" class="muted">Noch keine Daten geladen</p>
+      <div id="zoomControls" class="controls zoom" hidden>
+        <label>
+          Ausschnitt
+          <select id="zoom">
+            <option value="0" selected>Ganzer Tag</option>
+            <option value="43200">Letzte 12 h</option>
+            <option value="21600">Letzte 6 h</option>
+            <option value="10800">Letzte 3 h</option>
+            <option value="3600">Letzte 1 h</option>
+            <option value="1800">Letzte 30 min</option>
+            <option value="900">Letzte 15 min</option>
+          </select>
+        </label>
+        <div class="zoom-pan">
+          <button id="panPrev" type="button" class="secondary">‹ Früher</button>
+          <span id="zoomRange"></span>
+          <button id="panNext" type="button" class="secondary">Später ›</button>
+        </div>
+      </div>
+      <div id="chartList" class="chart-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Einstellungen</h2>
+      <div class="controls">
+        <label>
+          Log-Intervall
+          <select id="interval" disabled>
+            <option value="10">10 s</option>
+            <option value="30">30 s</option>
+            <option value="60">1 min</option>
+            <option value="120">2 min</option>
+            <option value="300">5 min</option>
+            <option value="600">10 min</option>
+            <option value="900">15 min</option>
+            <option value="1800">30 min</option>
+            <option value="3600">1 h</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted">Der SCD30 misst alle 2 Sekunden. Geloggt wird je Intervall der
+        Mittelwert dieser Messungen.</p>
+      <p id="storage" class="muted">Speicher: –</p>
+      <p class="muted">Der ESP32 misst und loggt immer, auch ohne Verbindung. Ist der Speicher
+        voll, werden die ältesten Daten überschrieben.</p>
+      <div class="controls spaced">
+        <button id="clear" type="button" class="danger" disabled>Log löschen</button>
+      </div>
+      <h3>Daten im Browser</h3>
+      <p id="localInfo" class="muted">Im Browser gespeichert: –</p>
+      <p class="muted">Alle geladenen Logdaten mit Uhrzeit bleiben in diesem Browser gespeichert.
+        Ohne Verbindung zeigen Kalender und Zeitraum diese Daten an. Löschen auf dem ESP32
+        löscht sie nicht. „Alles vom ESP32 laden“ holt das ganze Log in den Browser, damit
+        auch ältere Tage ohne Verbindung abrufbar sind.</p>
+      <div class="controls spaced">
+        <button id="archive" type="button" disabled>Alles vom ESP32 in den Browser laden</button>
+        <button id="clearLocal" type="button" class="danger">Lokale Daten löschen</button>
+      </div>
+      <progress id="archiveProgress" max="1" value="0" hidden></progress>
+      <p id="archiveStatus" class="muted" hidden></p>
+    </section>
+    </div>
+
+    <div data-page="sensor" hidden>
+      <section class="panel">
+        <h2>CO₂-Kalibrierung</h2>
+        <p id="sensorInfo" class="muted">Nicht verbunden</p>
+
+        <h3>Automatische Selbstkalibrierung (ASC)</h3>
+        <p class="muted">Der SCD30 nimmt den tiefsten Wert der letzten Tage als 400 ppm an.
+          Das passt nur, wenn der Raum mindestens einmal am Tag gut gelüftet wird und der Sensor
+          dauerhaft läuft. Die ersten 7 Tage nach dem Einschalten lernt er noch.</p>
+        <label class="check">
+          <input id="asc" type="checkbox" disabled>
+          ASC eingeschaltet
+        </label>
+
+        <h3>Auf Referenzwert kalibrieren (FRC)</h3>
+        <p class="muted">Den Sensor mindestens 2 Minuten bei bekannter CO₂-Konzentration laufen
+          lassen, zum Beispiel draußen oder am offenen Fenster bei etwa 420 ppm, und erst dann
+          kalibrieren. Der Wert bleibt im SCD30 gespeichert.</p>
+        <div class="controls">
+          <label>
+            Referenz
+            <input id="frcPpm" class="number-input" type="number" min="400" max="2000" step="1" value="420">
+            ppm
+          </label>
+          <button id="frc" type="button" disabled>Jetzt kalibrieren</button>
+        </div>
+
+        <h3>Temperatur</h3>
+        <p class="muted">Der SCD30 erwärmt sich selbst etwas. Der Offset wird von der gemessenen
+          Temperatur abgezogen und beeinflusst auch die Luftfeuchte. Er kann nur positiv sein.</p>
+        <div class="controls">
+          <label>
+            Offset
+            <input id="tempOffset" class="number-input" type="number" min="0" max="20" step="0.01">
+            K
+          </label>
+          <button id="saveTempOffset" type="button" class="secondary" disabled>Speichern</button>
+        </div>
+
+        <h3>Höhe über dem Meeresspiegel</h3>
+        <p class="muted">Verbessert die Genauigkeit des CO₂-Werts. 0 = keine Korrektur.</p>
+        <div class="controls">
+          <label>
+            Höhe
+            <input id="altitude" class="number-input" type="number" min="0" max="3000" step="1">
+            m
+          </label>
+          <button id="saveAltitude" type="button" class="secondary" disabled>Speichern</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Display</h2>
+        <label class="check">
+          <input id="displayOn" type="checkbox" disabled>
+          Display eingeschaltet
+        </label>
+        <label class="field range-field">
+          Helligkeit
+          <input id="contrast" type="range" min="0" max="255" step="1" disabled>
+        </label>
+        <p class="muted">Ein OLED kann bei jahrelang gleichem Bild einbrennen. Wer das Display
+          selten braucht, schaltet es hier aus. Messen und Loggen laufen weiter.</p>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
